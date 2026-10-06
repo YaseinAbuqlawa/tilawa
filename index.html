@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>مسجّل التلاوة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Amiri:wght@700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EDF0EE; --surface:#F7F9F8; --ink:#1C2724; --muted:#5E6D68; --line:#CFD8D4;
+  --accent:#2C6658; --accent-ink:#F4F8F6; --floor:#A8742A; --pause:#DDE5E1; --rec:#A23B2E;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#141B19; --surface:#1B2421; --ink:#E3EAE7; --muted:#97A7A1; --line:#2D3A36;
+    --accent:#6FB3A2; --accent-ink:#0F1715; --floor:#D6A35A; --pause:#22302C; --rec:#E07565;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#141B19; --surface:#1B2421; --ink:#E3EAE7; --muted:#97A7A1; --line:#2D3A36;
+  --accent:#6FB3A2; --accent-ink:#0F1715; --floor:#D6A35A; --pause:#22302C; --rec:#E07565;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"IBM Plex Sans Arabic",system-ui,"Segoe UI",Tahoma,sans-serif;font-size:16px;line-height:1.6}
+main{max-width:760px;margin:0 auto;padding:28px 18px 48px}
+h1{font-family:"Amiri","Noto Naskh Arabic","Times New Roman",serif;font-weight:700;font-size:2.1rem;margin:0 0 4px;line-height:1.3}
+.sub{color:var(--muted);margin:0 0 28px;font-size:.95rem}
+.recorder{display:flex;flex-direction:column;align-items:center;gap:12px;padding:28px 16px;background:var(--surface);border:1px solid var(--line);border-radius:22px}
+#recBtn{width:112px;height:112px;border-radius:50%;border:none;cursor:pointer;background:var(--accent);color:var(--accent-ink);
+  font:inherit;font-weight:600;font-size:1rem;display:grid;place-items:center;transition:transform .15s ease, background .2s}
+#recBtn:active{transform:scale(.96)}
+#recBtn.on{background:var(--rec)}
+#recBtn:focus-visible,button:focus-visible,input:focus-visible,label:focus-within{outline:3px solid var(--floor);outline-offset:3px}
+#timer{font-variant-numeric:tabular-nums;font-size:1.4rem;letter-spacing:.02em;min-height:1.6em}
+.filepick{color:var(--muted);font-size:.92rem;cursor:pointer;text-decoration:underline;text-underline-offset:4px}
+.filepick input{position:absolute;width:1px;height:1px;opacity:0}
+#status{color:var(--muted);font-size:.92rem;text-align:center;min-height:1.4em;margin:0}
+#status.err{color:var(--rec)}
+section.result{margin-top:30px;display:none}
+section.result.show{display:block}
+.savebar{display:flex;gap:8px;margin-bottom:18px}
+.savebar input{flex:1;min-width:0;font:inherit;padding:10px 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
+.savebar button,.ghost{font:inherit;font-weight:500;padding:10px 18px;border-radius:12px;border:none;background:var(--accent);color:var(--accent-ink);cursor:pointer}
+.savebar button:disabled{opacity:.5;cursor:default}
+h2{font-size:1.15rem;margin:0 0 10px;font-weight:600}
+.stats{display:flex;gap:26px;margin:0 0 14px;flex-wrap:wrap}
+.stat b{display:block;font-size:1.5rem;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.2}
+.stat span{color:var(--muted);font-size:.85rem}
+.chartwrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:16px;direction:ltr}
+canvas{display:block}
+.legend{color:var(--muted);font-size:.85rem;margin:8px 0 22px}
+.legend i{display:inline-block;width:18px;height:0;border-top:2px dashed var(--floor);vertical-align:middle;margin-inline-start:4px;margin-inline-end:6px}
+.legend s{display:inline-block;width:14px;height:10px;background:var(--pause);vertical-align:middle;margin-inline-end:6px;text-decoration:none}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;font-size:.92rem}
+th,td{padding:7px 8px;text-align:center;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--muted);font-weight:500}
+td.hi{color:var(--floor);font-weight:600}
+.history{margin-top:36px}
+.history ul{list-style:none;padding:0;margin:0}
+.history li button{all:unset;cursor:pointer;display:flex;justify-content:space-between;gap:12px;width:100%;padding:12px 4px;border-bottom:1px solid var(--line)}
+.history li button:focus-visible{outline:3px solid var(--floor)}
+.history .when{color:var(--muted);font-size:.85rem}
+.empty{color:var(--muted);font-size:.92rem}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+  <h1>مسجّل التلاوة</h1>
+  <p class="sub">سجّل وأنت مرتاح، والتحليل يظهر بعد ما تخلص.</p>
+
+  <div class="recorder">
+    <button id="recBtn" type="button" aria-pressed="false">ابدأ</button>
+    <div id="timer" aria-live="polite"></div>
+    <label class="filepick">أو حلّل ملف صوتي<input id="fileIn" type="file" accept="audio/*"></label>
+    <p id="status" role="status"></p>
+  </div>
+
+  <section class="result" id="result">
+    <div class="savebar">
+      <input id="label" type="text" placeholder="اللي قريته، مثلاً: البقرة ٢٨٦" aria-label="اسم التسجيل">
+      <button id="saveBtn" type="button">احفظ</button>
+    </div>
+    <h2 id="resTitle">التحليل</h2>
+    <div class="stats" id="stats"></div>
+    <div class="chartwrap"><canvas id="chart"></canvas></div>
+    <p class="legend"><i></i>أرضيتك ٩١ هرتز &nbsp; <s></s>وقفة &nbsp; الخط الأثقل مدّ ممسوك</p>
+    <h2>الجمل</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>#</th><th>من</th><th>إلى</th><th>بداية</th><th>ذروة</th><th>قفلة</th><th>مدّ ممسوك</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="history">
+    <h2>التسجيلات المحفوظة</h2>
+    <ul id="hist"><li class="empty">لسه مفيش تسجيلات محفوظة.</li></ul>
+  </section>
+</main>
+
+<script>
+(function(){
+const FLOOR = 91;
+const HOP = 0.02;
+const $ = id => document.getElementById(id);
+const recBtn=$('recBtn'), timerEl=$('timer'), statusEl=$('status'), fileIn=$('fileIn');
+let mediaRec=null, chunks=[], t0=0, tick=null, current=null;
+
+function setStatus(msg, err){ statusEl.textContent=msg||''; statusEl.classList.toggle('err',!!err); }
+const fmt = s => { s=Math.max(0,s); const m=Math.floor(s/60); return m+':'+String(Math.floor(s%60)).padStart(2,'0'); };
+const fmt1 = s => s.toFixed(1);
+
+/* ---------- recording ---------- */
+recBtn.addEventListener('click', async ()=>{
+  if(mediaRec && mediaRec.state==='recording'){ mediaRec.stop(); return; }
+  if(!navigator.mediaDevices || !window.MediaRecorder){
+    setStatus('التسجيل من هنا مش مدعوم. سجّل من تطبيق التسجيل واختار الملف.', true); return;
+  }
+  let stream;
+  try{ stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}}); }
+  catch(e){ setStatus('المايك مش متاح للصفحة دي. سجّل من تطبيق التسجيل واختار الملف من تحت الزرار.', true); return; }
+  chunks=[];
+  mediaRec = new MediaRecorder(stream);
+  mediaRec.ondataavailable = e => { if(e.data && e.data.size) chunks.push(e.data); };
+  mediaRec.onstop = async ()=>{
+    stream.getTracks().forEach(t=>t.stop());
+    clearInterval(tick); recBtn.classList.remove('on'); recBtn.textContent='ابدأ'; recBtn.setAttribute('aria-pressed','false');
+    const blob = new Blob(chunks,{type:mediaRec.mimeType||'audio/webm'});
+    mediaRec=null;
+    await analyzeBlob(blob);
+  };
+  mediaRec.start();
+  t0=performance.now(); timerEl.textContent='0:00';
+  tick=setInterval(()=>{ timerEl.textContent=fmt((performance.now()-t0)/1000); },250);
+  recBtn.classList.add('on'); recBtn.textContent='إنهاء'; recBtn.setAttribute('aria-pressed','true');
+  setStatus('بيسجّل');
+});
+
+fileIn.addEventListener('change', async ()=>{
+  const f=fileIn.files&&fileIn.files[0]; if(!f) return;
+  await analyzeBlob(f, f.name.replace(/\.[^.]+$/,''));
+  fileIn.value='';
+});
+
+/* ---------- decode + resample ---------- */
+async function decodeTo(blob){
+  const buf = await blob.arrayBuffer();
+  const AC = window.AudioContext||window.webkitAudioContext;
+  const ac = new AC();
+  const audio = await new Promise((res,rej)=>{ const p=ac.decodeAudioData(buf,res,rej); if(p&&p.then) p.then(res,rej); });
+  try{ ac.close(); }catch(e){}
+  for(const SR of [16000,22050]){
+    try{
+      const off = new OfflineAudioContext(1, Math.ceil(audio.duration*SR), SR);
+      const src = off.createBufferSource(); src.buffer=audio; src.connect(off.destination); src.start();
+      const r = await off.startRendering();
+      return {x:r.getChannelData(0), sr:SR, duration:audio.duration};
+    }catch(e){}
+  }
+  throw new Error('resample');
+}
+
+/* ---------- analysis ---------- */
+function yinFrame(x, start, W, tmin, tmax, d){
+  d[0]=1; let run=0, best=-1;
+  for(let tau=1;tau<=tmax;tau++){
+    let s=0;
+    for(let j=0;j<W;j++){ const v=x[start+j]-x[start+j+tau]; s+=v*v; }
+    run+=s; d[tau]= run>0 ? s*tau/run : 1;
+  }
+  for(let tau=tmin;tau<=tmax;tau++){
+    if(d[tau]<0.15){ while(tau+1<=tmax && d[tau+1]<d[tau]) tau++; best=tau; break; }
+  }
+  if(best<0){
+    let m=1e9, mi=-1;
+    for(let tau=tmin;tau<=tmax;tau++) if(d[tau]<m){m=d[tau];mi=tau;}
+    if(m<0.3) best=mi; else return 0;
+  }
+  let t=best;
+  if(best>tmin && best<tmax){
+    const a=d[best-1], b=d[best], c=d[best+1], den=a+c-2*b;
+    if(den!==0) t = best + (a-c)/(2*den);
+  }
+  return t;
+}
+const pct = (arr,p)=>{ if(!arr.length) return 0; const s=[...arr].sort((a,b)=>a-b); return s[Math.min(s.length-1,Math.max(0,Math.round((p/100)*(s.length-1))))]; };
+const med = arr => pct(arr,50);
+const sleep = ()=>new Promise(r=>setTimeout(r,0));
+
+async function analyze(x, sr){
+  const hop=Math.round(HOP*sr), W=Math.round(0.02*sr), tmin=Math.floor(sr/250), tmax=Math.floor(sr/60);
+  const n=Math.max(0,Math.floor((x.length-W-tmax)/hop));
+  const dbv=new Array(n), f0=new Array(n).fill(0);
+  for(let i=0;i<n;i++){
+    let s=0; const st=i*hop; for(let j=0;j<W;j++){ const v=x[st+j]; s+=v*v; }
+    dbv[i]=10*Math.log10(s/W+1e-12)+100;
+  }
+  const floorDb=pct(dbv,5), gate=floorDb+12;
+  const d=new Float64Array(tmax+2);
+  for(let i=0;i<n;i++){
+    if(dbv[i]>gate){ const t=yinFrame(x,i*hop,W,tmin,tmax,d); const f=t?sr/t:0; f0[i]=(f>=60&&f<=260)?f:0; }
+    if(i%150===0){ setStatus('بيحلل… '+Math.round(i/n*100)+'%'); await sleep(); }
+  }
+  // octave cleanup + median smoothing
+  const voiced=f0.filter(v=>v>0); const m=med(voiced)||100;
+  for(let i=0;i<n;i++){ const f=f0[i]; if(!f) continue; if(f>1.75*m){ const h=f/2; f0[i]=(h>0.6*m)?h:0; } else if(f<0.55*m) f0[i]=0; }
+  const sm=f0.slice();
+  for(let i=1;i<n-1;i++){ if(f0[i]&&f0[i-1]&&f0[i+1]) sm[i]=[f0[i-1],f0[i],f0[i+1]].sort((a,b)=>a-b)[1]; else if(f0[i]&&!f0[i-1]&&!f0[i+1]) sm[i]=0; }
+  // pauses
+  const low=dbv.map(v=>v<floorDb+9);
+  let pauses=[], st=-1;
+  for(let i=0;i<=n;i++){
+    const l=i<n?low[i]:false;
+    if(l&&st<0) st=i;
+    if(!l&&st>=0){ if((i-st)*HOP>=0.22) pauses.push([st,i]); st=-1; }
+  }
+  const merged=[]; for(const p of pauses){ if(merged.length && (p[0]-merged[merged.length-1][1])*HOP<0.15) merged[merged.length-1][1]=p[1]; else merged.push(p.slice()); }
+  // phrases
+  const phrases=[]; let prev=0;
+  const bounds=merged.concat([[n,n]]);
+  for(const [a,b] of bounds){
+    if((a-prev)*HOP>0.3){
+      const fs=[]; for(let i=prev;i<a;i++) if(sm[i]) fs.push(sm[i]);
+      if(fs.length>=8) phrases.push({a:prev,b:a,start:med(fs.slice(0,8)),peak:pct(fs,95),end:med(fs.slice(-13)),pauseAfter:Math.max(0,(b-a)*HOP)});
+    }
+    prev=b;
+  }
+  // sustains
+  const sustains=[]; let i=0;
+  while(i<n){
+    if(!sm[i]){ i++; continue; }
+    let j=i, vals=[], gap=0;
+    while(j<n){
+      if(!sm[j]){ gap++; if(gap>1) break; j++; continue; }
+      const mm = vals.length? med(vals.slice(-25)) : sm[j];
+      if(Math.abs(sm[j]-mm)>=6) break;
+      gap=0; vals.push(sm[j]); j++;
+    }
+    if((j-i)*HOP>=0.7 && vals.length>=25) sustains.push({a:i,b:j,f:med(vals)});
+    i = j>i ? j : i+1;
+  }
+  for(const p of phrases){
+    const s=sustains.filter(z=>z.a>=p.a && z.b<=p.b+2);
+    p.sustain = s.length ? s[s.length-1] : null;
+  }
+  const allV=sm.filter(v=>v>0);
+  return {
+    n, f0:sm.map(v=>Math.round(v)), db:dbv.map(v=>Math.round(v)),
+    phrases:phrases.map(p=>({from:+(p.a*HOP).toFixed(2),to:+(p.b*HOP).toFixed(2),start:Math.round(p.start),peak:Math.round(p.peak),end:Math.round(p.end),pauseAfter:+p.pauseAfter.toFixed(2),
+      sustain:p.sustain?{from:+(p.sustain.a*HOP).toFixed(2),to:+(p.sustain.b*HOP).toFixed(2),hz:Math.round(p.sustain.f)}:null})),
+    sustains:sustains.map(z=>({from:+(z.a*HOP).toFixed(2),to:+(z.b*HOP).toFixed(2),hz:Math.round(z.f)})),
+    pauses:merged.map(([a,b])=>({from:+(a*HOP).toFixed(2),to:+(b*HOP).toFixed(2)})),
+    stats:{median:Math.round(med(allV)),p5:Math.round(pct(allV,5)),p95:Math.round(pct(allV,95)),voicedRatio:+(allV.length/Math.max(1,n)).toFixed(2)}
+  };
+}
+
+async function analyzeBlob(blob, name){
+  try{
+    setStatus('بيجهّز الصوت…');
+    const {x,sr,duration}=await decodeTo(blob);
+    if(duration>300){ setStatus('التسجيل أطول من ٥ دقائق. قسّمه لأجزاء أقصر.', true); return; }
+    const r=await analyze(x,sr);
+    current={label:name||'', createdAt:new Date().toISOString(), duration:+duration.toFixed(2), hop:HOP, floorRef:FLOOR, ...r, saved:false};
+    $('label').value=current.label;
+    $('saveBtn').disabled=false; $('saveBtn').textContent='احفظ';
+    render(current);
+    setStatus('التحليل جاهز. اكتب اللي قريته واحفظه.');
+  }catch(e){
+    setStatus('مقدرتش أقرا الصوت ده. جرّب ملف m4a أو mp3.', true);
+  }
+}
+
+/* ---------- render ---------- */
+function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+function render(r){
+  $('result').classList.add('show');
+  $('resTitle').textContent = r.label ? r.label : 'التحليل';
+  $('stats').innerHTML='';
+  [['الوسط',r.stats.median],['أوطى',r.stats.p5],['أعلى',r.stats.p95],['المدة',null]].forEach(([k,v])=>{
+    const d=document.createElement('div'); d.className='stat';
+    const b=document.createElement('b'); b.textContent = v===null ? fmt(r.duration) : v+' هرتز';
+    const s=document.createElement('span'); s.textContent=k; d.append(b,s); $('stats').append(d);
+  });
+  drawChart(r);
+  const tb=$('rows'); tb.innerHTML='';
+  r.phrases.forEach((p,i)=>{
+    const tr=document.createElement('tr');
+    const cells=[i+1, fmt1(p.from), fmt1(p.to), p.start, p.peak, p.end, p.sustain? (p.sustain.hz+' / '+fmt1(p.sustain.to-p.sustain.from)+'ث') : '—'];
+    cells.forEach((c,ci)=>{ const td=document.createElement('td'); td.textContent=c; if(ci===5 && Math.abs(p.end-FLOOR)>7) td.className='hi'; tr.append(td); });
+    tb.append(tr);
+  });
+  if(!r.phrases.length){ const tr=document.createElement('tr'); const td=document.createElement('td'); td.colSpan=7; td.textContent='ملقيتش جمل واضحة في التسجيل.'; tr.append(td); tb.append(tr); }
+}
+
+function drawChart(r){
+  const cv=$('chart'), wrap=cv.parentElement, dpr=window.devicePixelRatio||1;
+  const H=280, padL=40, padR=12, padT=22, padB=26;
+  const W=Math.max(wrap.clientWidth, Math.round(r.duration*48)+padL+padR);
+  cv.width=W*dpr; cv.height=H*dpr; cv.style.width=W+'px'; cv.style.height=H+'px';
+  const g=cv.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,W,H);
+  const v=r.f0.filter(x=>x>0);
+  const lo=Math.min(75, pct(v,1)||75), hi=Math.max(135, pct(v,99)||135);
+  const y=f=>padT+(H-padT-padB)*(1-(Math.log(f)-Math.log(lo))/(Math.log(hi)-Math.log(lo)));
+  const x=t=>padL+(W-padL-padR)*(t/r.duration);
+  const ink=css('--ink'), muted=css('--muted'), line=css('--line'), acc=css('--accent'), fl=css('--floor'), pz=css('--pause');
+  g.font='12px "IBM Plex Sans Arabic", system-ui, sans-serif';
+  // pauses
+  g.fillStyle=pz; r.pauses.forEach(p=>g.fillRect(x(p.from),padT,Math.max(1,x(p.to)-x(p.from)),H-padT-padB));
+  // grid
+  g.strokeStyle=line; g.fillStyle=muted; g.lineWidth=1; g.textAlign='right'; g.textBaseline='middle';
+  for(let f=80; f<=hi; f+=10){ if(f<lo) continue; const yy=Math.round(y(f))+.5; g.beginPath(); g.moveTo(padL,yy); g.lineTo(W-padR,yy); g.stroke(); g.fillText(f,padL-6,yy); }
+  // time ticks
+  g.textAlign='center'; g.textBaseline='top';
+  const step = r.duration>90?10:5;
+  for(let t=0;t<=r.duration;t+=step){ g.fillText(fmt(t), x(t), H-padB+6); }
+  // floor
+  g.strokeStyle=fl; g.setLineDash([6,5]); g.lineWidth=1.5; g.beginPath(); g.moveTo(padL,y(FLOOR)); g.lineTo(W-padR,y(FLOOR)); g.stroke(); g.setLineDash([]);
+  // pitch
+  g.strokeStyle=acc; g.lineWidth=2; g.lineJoin='round';
+  let on=false; g.beginPath();
+  r.f0.forEach((f,i)=>{ if(f>0){ const px=x(i*r.hop), py=y(f); if(!on){g.moveTo(px,py); on=true;} else g.lineTo(px,py);} else on=false; });
+  g.stroke();
+  // sustains
+  g.strokeStyle=fl; g.lineWidth=5; g.lineCap='round';
+  r.sustains.forEach(z=>{ g.beginPath(); g.moveTo(x(z.from),y(z.hz)); g.lineTo(x(z.to),y(z.hz)); g.stroke(); });
+  g.lineCap='butt';
+  // phrase numbers
+  g.fillStyle=ink; g.textBaseline='top'; g.font='600 12px "IBM Plex Sans Arabic", system-ui, sans-serif';
+  r.phrases.forEach((p,i)=>g.fillText(String(i+1), x((p.from+p.to)/2), 4));
+}
+window.addEventListener('resize',()=>{ if(current) drawChart(current); });
+
+/* ---------- storage ---------- */
+const SB_URL='https://mnklhvblohyrgsvfhgxl.supabase.co/rest/v1/tilawa_recordings';
+const SB_KEY='sb_publishable_h4WKea7RQ4ASC7AgxnXHnQ_xJnDEDwV';
+const LS_KEY='tilawa_history_v1';
+function loadLocal(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)||'[]'); }catch(e){ return []; } }
+function saveLocal(list){
+  while(list.length){ try{ localStorage.setItem(LS_KEY, JSON.stringify(list)); return true; }catch(e){ list.pop(); } }
+  return false;
+}
+
+$('saveBtn').addEventListener('click', async ()=>{
+  if(!current) return;
+  const label=$('label').value.trim()||('تسجيل '+new Date().toLocaleString('ar-EG'));
+  current.label=label; $('resTitle').textContent=label;
+  const btn=$('saveBtn'); btn.disabled=true; btn.textContent='بيحفظ…';
+  const row={label, duration:current.duration, hop:current.hop, stats:current.stats, phrases:current.phrases,
+    sustains:current.sustains, pauses:current.pauses, f0:current.f0, db:current.db};
+  try{
+    const res=await fetch(SB_URL,{method:'POST',headers:{'apikey':SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify(row)});
+    if(!res.ok) throw new Error(String(res.status));
+    current.saved=true; btn.textContent='اتحفظ';
+    const list=loadLocal(); list.unshift({...current, id:'l'+Date.now()}); saveLocal(list.slice(0,25)); renderHistory();
+    setStatus('اتحفظ باسم «'+label+'». قول لـClaude يشوفه.');
+  }catch(e){
+    btn.disabled=false; btn.textContent='احفظ';
+    setStatus(navigator.onLine===false ? 'مفيش نت. جرّب تاني لما يرجع.' : 'الحفظ فشل. لو المشروع على Supabase متوقف، رجّعه من لوحة Supabase وجرّب تاني.', true);
+  }
+});
+
+function renderHistory(){
+  const docs=loadLocal(); const ul=$('hist'); ul.innerHTML='';
+  if(!docs.length){ const li=document.createElement('li'); li.className='empty'; li.textContent='لسه مفيش تسجيلات محفوظة.'; ul.append(li); return; }
+  docs.forEach(v=>{
+    const li=document.createElement('li'); const b=document.createElement('button'); b.type='button';
+    const a=document.createElement('span'); a.textContent=v.label||'بدون اسم';
+    const w=document.createElement('span'); w.className='when'; w.textContent=new Date(v.createdAt).toLocaleDateString('ar-EG',{day:'numeric',month:'short'})+'، '+fmt(v.duration||0);
+    b.append(a,w);
+    b.addEventListener('click',()=>{
+      current={...v, saved:true}; $('label').value=current.label||''; $('saveBtn').disabled=true; $('saveBtn').textContent='محفوظ';
+      render(current); setStatus(''); $('result').scrollIntoView({behavior:'smooth',block:'start'});
+    });
+    li.append(b); ul.append(li);
+  });
+}
+renderHistory();
+})();
+</script>
+</body>
+</html>
