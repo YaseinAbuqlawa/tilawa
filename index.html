@@ -119,28 +119,45 @@ function setStatus(msg, err){ statusEl.textContent=msg||''; statusEl.classList.t
 const fmt = s => { s=Math.max(0,s); const m=Math.floor(s/60); return m+':'+String(Math.floor(s%60)).padStart(2,'0'); };
 const fmt1 = s => s.toFixed(1);
 
-/* ---------- recording ---------- */
+/* ---------- recording (raw PCM, no MediaRecorder needed) ---------- */
+let rec=null;
+function diag(){
+  const ua=navigator.userAgent, m=ua.match(/OS (\d+)_(\d+)/);
+  return 'العنوان: '+location.protocol+'//'+location.host+'  |  اتصال آمن: '+(window.isSecureContext?'أيوه':'لأ')+
+    '  |  المايك في المتصفح: '+(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia?'موجود':'مش موجود')+
+    (m?'  |  iOS '+m[1]+'.'+m[2]:'');
+}
+async function stopRec(){
+  const r=rec; rec=null;
+  clearInterval(tick); recBtn.classList.remove('on'); recBtn.textContent='ابدأ'; recBtn.setAttribute('aria-pressed','false');
+  try{ r.proc.disconnect(); r.src.disconnect(); }catch(e){}
+  r.stream.getTracks().forEach(t=>t.stop());
+  const len=r.chunks.reduce((a,c)=>a+c.length,0);
+  const pcm=new Float32Array(len); let o=0; for(const c of r.chunks){ pcm.set(c,o); o+=c.length; }
+  const sr=r.ac.sampleRate; try{ await r.ac.close(); }catch(e){}
+  if(len<sr*0.5){ setStatus('التسجيل قصير جداً.', true); return; }
+  await analyzePCM(pcm, sr);
+}
 recBtn.addEventListener('click', async ()=>{
-  if(mediaRec && mediaRec.state==='recording'){ mediaRec.stop(); return; }
-  if(!navigator.mediaDevices || !window.MediaRecorder){
-    setStatus('التسجيل من هنا مش مدعوم. سجّل من تطبيق التسجيل واختار الملف.', true); return;
+  if(rec){ await stopRec(); return; }
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    setStatus('المتصفح مش مدّي الصفحة المايك. '+diag(), true); return;
   }
+  const AC=window.AudioContext||window.webkitAudioContext;
+  const ac=new AC();
+  try{ if(ac.state==='suspended') await ac.resume(); }catch(e){}
   let stream;
-  try{ stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}}); }
-  catch(e){ setStatus('المايك مش متاح للصفحة دي. سجّل من تطبيق التسجيل واختار الملف من تحت الزرار.', true); return; }
-  chunks=[];
-  mediaRec = new MediaRecorder(stream);
-  mediaRec.ondataavailable = e => { if(e.data && e.data.size) chunks.push(e.data); };
-  mediaRec.onstop = async ()=>{
-    stream.getTracks().forEach(t=>t.stop());
-    clearInterval(tick); recBtn.classList.remove('on'); recBtn.textContent='ابدأ'; recBtn.setAttribute('aria-pressed','false');
-    const blob = new Blob(chunks,{type:mediaRec.mimeType||'audio/webm'});
-    mediaRec=null;
-    await analyzeBlob(blob);
-  };
-  mediaRec.start();
+  try{ stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}}); }
+  catch(e){ try{ac.close();}catch(_){} setStatus('إذن المايك اترفض أو مش متاح ('+(e&&e.name||'خطأ')+'). '+diag(), true); return; }
+  const src=ac.createMediaStreamSource(stream);
+  const proc=ac.createScriptProcessor(4096,1,1);
+  const chunks=[];
+  proc.onaudioprocess=ev=>{ chunks.push(new Float32Array(ev.inputBuffer.getChannelData(0))); };
+  const sink=ac.createGain(); sink.gain.value=0;
+  src.connect(proc); proc.connect(sink); sink.connect(ac.destination);
+  rec={ac,stream,src,proc,chunks};
   t0=performance.now(); timerEl.textContent='0:00';
-  tick=setInterval(()=>{ timerEl.textContent=fmt((performance.now()-t0)/1000); },250);
+  tick=setInterval(()=>{ const s=(performance.now()-t0)/1000; timerEl.textContent=fmt(s); if(s>=300 && rec) stopRec(); },250);
   recBtn.classList.add('on'); recBtn.textContent='إنهاء'; recBtn.setAttribute('aria-pressed','true');
   setStatus('بيسجّل');
 });
@@ -263,10 +280,27 @@ async function analyze(x, sr){
   };
 }
 
+async function resamplePCM(pcm, srIn){
+  for(const SR of [16000,22050]){
+    try{
+      const off=new OfflineAudioContext(1, Math.ceil(pcm.length/srIn*SR), SR);
+      const b=off.createBuffer(1,pcm.length,srIn); b.getChannelData(0).set(pcm);
+      const s=off.createBufferSource(); s.buffer=b; s.connect(off.destination); s.start();
+      const r=await off.startRendering(); return {x:r.getChannelData(0), sr:SR, duration:pcm.length/srIn};
+    }catch(e){}
+  }
+  throw new Error('resample');
+}
+async function analyzePCM(pcm, srIn){
+  try{ setStatus('بيجهّز الصوت…'); const d=await resamplePCM(pcm,srIn); await runAnalysis(d,''); }
+  catch(e){ setStatus('حصلت مشكلة في تجهيز التسجيل.', true); }
+}
 async function analyzeBlob(blob, name){
-  try{
-    setStatus('بيجهّز الصوت…');
-    const {x,sr,duration}=await decodeTo(blob);
+  try{ setStatus('بيجهّز الصوت…'); const d=await decodeTo(blob); await runAnalysis(d,name); }
+  catch(e){ setStatus('مقدرتش أقرا الصوت ده. جرّب ملف m4a أو mp3.', true); }
+}
+async function runAnalysis({x,sr,duration}, name){
+  {
     if(duration>300){ setStatus('التسجيل أطول من ٥ دقائق. قسّمه لأجزاء أقصر.', true); return; }
     const r=await analyze(x,sr);
     current={label:name||'', createdAt:new Date().toISOString(), duration:+duration.toFixed(2), hop:HOP, floorRef:FLOOR, ...r, saved:false};
@@ -274,8 +308,6 @@ async function analyzeBlob(blob, name){
     $('saveBtn').disabled=false; $('saveBtn').textContent='احفظ';
     render(current);
     setStatus('التحليل جاهز. اكتب اللي قريته واحفظه.');
-  }catch(e){
-    setStatus('مقدرتش أقرا الصوت ده. جرّب ملف m4a أو mp3.', true);
   }
 }
 
