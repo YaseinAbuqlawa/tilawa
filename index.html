@@ -8,9 +8,11 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Amiri:wght@700&display=swap" rel="stylesheet">
 <style>
+@font-face{font-family:"Amiri Quran Local";src:url("fonts/AmiriQuran.woff2") format("woff2");font-display:swap}
 :root{
   --bg:#EDF0EE; --surface:#F7F9F8; --ink:#1C2724; --muted:#5E6D68; --line:#CFD8D4;
   --accent:#2C6658; --accent-ink:#F4F8F6; --floor:#A8742A; --pause:#DDE5E1; --rec:#A23B2E;
+  --t1:#A3122A; --t2:#D9480F; --t3:#2B8A3E; --t4:#7048E8; --t5:#1864AB; --t6:#9AA5A1;
   box-sizing:border-box;
   padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
 }
@@ -18,37 +20,64 @@
   :root:not([data-theme="light"]){
     --bg:#141B19; --surface:#1B2421; --ink:#E3EAE7; --muted:#97A7A1; --line:#2D3A36;
     --accent:#6FB3A2; --accent-ink:#0F1715; --floor:#D6A35A; --pause:#22302C; --rec:#E07565;
+    --t1:#FF6B7A; --t2:#FF9A5C; --t3:#5FD07A; --t4:#B197FC; --t5:#6CB6FF; --t6:#64716D;
   }
 }
 :root[data-theme="dark"]{
   --bg:#141B19; --surface:#1B2421; --ink:#E3EAE7; --muted:#97A7A1; --line:#2D3A36;
   --accent:#6FB3A2; --accent-ink:#0F1715; --floor:#D6A35A; --pause:#22302C; --rec:#E07565;
+  --t1:#FF6B7A; --t2:#FF9A5C; --t3:#5FD07A; --t4:#B197FC; --t5:#6CB6FF; --t6:#64716D;
 }
 *,*::before,*::after{box-sizing:inherit}
 html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
 body{margin:0;background:var(--bg);color:var(--ink);
   font-family:"IBM Plex Sans Arabic",system-ui,"Segoe UI",Tahoma,sans-serif;font-size:16px;line-height:1.6}
-main{max-width:760px;margin:0 auto;padding:28px 18px 48px}
-h1{font-family:"Amiri","Noto Naskh Arabic","Times New Roman",serif;font-weight:700;font-size:2.1rem;margin:0 0 4px;line-height:1.3}
-.sub{color:var(--muted);margin:0 0 28px;font-size:.95rem}
-.recorder{display:flex;flex-direction:column;align-items:center;gap:12px;padding:28px 16px;background:var(--surface);border:1px solid var(--line);border-radius:22px}
-#recBtn{width:112px;height:112px;border-radius:50%;border:none;cursor:pointer;background:var(--accent);color:var(--accent-ink);
-  font:inherit;font-weight:600;font-size:1rem;display:grid;place-items:center;transition:transform .15s ease, background .2s}
+main{max-width:760px;margin:0 auto;padding:24px 16px 150px}
+h1{font-family:"Amiri","Noto Naskh Arabic","Times New Roman",serif;font-weight:700;font-size:2rem;margin:0 0 18px;line-height:1.3}
+h2{font-size:1.15rem;margin:0 0 10px;font-weight:600}
+.picker{display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-bottom:12px}
+.picker label{display:flex;flex-direction:column;font-size:.82rem;color:var(--muted);gap:4px}
+.picker select,.picker input{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:9px 10px}
+.picker select{min-width:150px}
+.picker input{width:78px;text-align:center}
+.btn{font:inherit;font-weight:500;padding:9px 16px;border-radius:12px;border:none;background:var(--accent);color:var(--accent-ink);cursor:pointer}
+.btn.quiet{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 10px;font-size:.88rem;color:var(--muted)}
+.tools label{display:flex;align-items:center;gap:6px;cursor:pointer}
+.mushaf{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:18px 18px 22px;
+  font-family:"Amiri Quran Local","Amiri Quran","Scheherazade New",serif;font-size:var(--qsize,30px);line-height:2.25;text-align:center}
+.mushaf .basmala{display:block;text-align:center;margin-bottom:6px}
+.mushaf .num{font-size:.8em;color:var(--accent);white-space:nowrap;padding:0 .15em}
+.mushaf .t1{color:var(--t1)} .mushaf .t2{color:var(--t2)} .mushaf .t3{color:var(--t3)}
+.mushaf .t4{color:var(--t4)} .mushaf .t5{color:var(--t5)} .mushaf .t6{color:var(--t6)}
+.mushaf.plain [class^="t"]{color:inherit}
+.mushaf .empty{font-family:"IBM Plex Sans Arabic",system-ui,sans-serif;font-size:.95rem;color:var(--muted);text-align:center;line-height:1.6}
+.legend-t{display:flex;flex-wrap:wrap;gap:6px 14px;margin:10px 2px 0;font-size:.82rem;color:var(--muted)}
+.legend-t span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:50%;margin-inline-end:6px;background:var(--c);vertical-align:-1px}
+.source{font-size:.75rem;color:var(--muted);margin:8px 2px 0}
+#toast{position:fixed;left:50%;bottom:calc(110px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);
+  padding:8px 14px;border-radius:12px;font-size:.9rem;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90vw;text-align:center;z-index:5}
+#toast.show{opacity:1}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);
+  padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));display:flex;align-items:center;gap:14px;z-index:4}
+.bar .inner{max-width:760px;margin:0 auto;display:flex;align-items:center;gap:14px;width:100%}
+#recBtn{flex:none;width:68px;height:68px;border-radius:50%;border:none;cursor:pointer;background:var(--accent);color:var(--accent-ink);
+  font:inherit;font-weight:600;font-size:.95rem;transition:transform .15s ease, background .2s}
 #recBtn:active{transform:scale(.96)}
 #recBtn.on{background:var(--rec)}
-#recBtn:focus-visible,button:focus-visible,input:focus-visible,label:focus-within{outline:3px solid var(--floor);outline-offset:3px}
-#timer{font-variant-numeric:tabular-nums;font-size:1.4rem;letter-spacing:.02em;min-height:1.6em}
-.filepick{color:var(--muted);font-size:.92rem;cursor:pointer;text-decoration:underline;text-underline-offset:4px}
-.filepick input{position:absolute;width:1px;height:1px;opacity:0}
-#status{color:var(--muted);font-size:.92rem;text-align:center;min-height:1.4em;margin:0}
+.barinfo{flex:1;min-width:0}
+#timer{font-variant-numeric:tabular-nums;font-size:1.25rem;line-height:1.2;min-height:1.2em}
+#status{color:var(--muted);font-size:.85rem;margin:0;line-height:1.4}
 #status.err{color:var(--rec)}
+.filepick{color:var(--muted);font-size:.82rem;cursor:pointer;text-decoration:underline;text-underline-offset:4px;flex:none}
+.filepick input{position:absolute;width:1px;height:1px;opacity:0}
+button:focus-visible,input:focus-visible,select:focus-visible,label:focus-within{outline:3px solid var(--floor);outline-offset:3px}
 section.result{margin-top:30px;display:none}
 section.result.show{display:block}
 .savebar{display:flex;gap:8px;margin-bottom:18px}
 .savebar input{flex:1;min-width:0;font:inherit;padding:10px 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
-.savebar button,.ghost{font:inherit;font-weight:500;padding:10px 18px;border-radius:12px;border:none;background:var(--accent);color:var(--accent-ink);cursor:pointer}
+.savebar button{font:inherit;font-weight:500;padding:10px 18px;border-radius:12px;border:none;background:var(--accent);color:var(--accent-ink);cursor:pointer}
 .savebar button:disabled{opacity:.5;cursor:default}
-h2{font-size:1.15rem;margin:0 0 10px;font-weight:600}
 .stats{display:flex;gap:26px;margin:0 0 14px;flex-wrap:wrap}
 .stat b{display:block;font-size:1.5rem;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.2}
 .stat span{color:var(--muted);font-size:.85rem}
@@ -74,18 +103,28 @@ td.hi{color:var(--floor);font-weight:600}
 <body>
 <main>
   <h1>مسجّل التلاوة</h1>
-  <p class="sub">سجّل وأنت مرتاح، والتحليل يظهر بعد ما تخلص.</p>
 
-  <div class="recorder">
-    <button id="recBtn" type="button" aria-pressed="false">ابدأ</button>
-    <div id="timer" aria-live="polite"></div>
-    <label class="filepick">أو حلّل ملف صوتي<input id="fileIn" type="file" accept="audio/*"></label>
-    <p id="status" role="status"></p>
+  <div class="picker">
+    <label>السورة<select id="surahSel" aria-label="السورة"></select></label>
+    <label>من آية<input id="fromIn" type="number" inputmode="numeric" min="1" value="1"></label>
+    <label>إلى آية<input id="toIn" type="number" inputmode="numeric" min="1" value="7"></label>
+    <button class="btn" id="showBtn" type="button">اعرض</button>
   </div>
+  <div class="tools">
+    <label><input type="checkbox" id="tajToggle" checked> ألوان التجويد</label>
+    <button class="btn quiet" id="smaller" type="button" aria-label="تصغير الخط">أ−</button>
+    <button class="btn quiet" id="bigger" type="button" aria-label="تكبير الخط">أ+</button>
+  </div>
+  <div class="mushaf" id="mushaf"><p class="empty">اختار السورة والآيات ودوس «اعرض».</p></div>
+  <div class="legend-t" id="tajLegend">
+    <span style="--c:var(--t1)">مد لازم ٦</span><span style="--c:var(--t2)">مد ٤–٥</span><span style="--c:var(--t3)">غنة وإخفاء</span>
+    <span style="--c:var(--t4)">إدغام بلا غنة</span><span style="--c:var(--t5)">قلقلة</span><span style="--c:var(--t6)">لا يُنطق</span>
+  </div>
+  <p class="source">النص: مصحف المدينة النبوية الرقمي، مجمع الملك فهد. الأحكام: مشروع quran-ws (CC BY 4.0). اضغط على أي كلمة ملوّنة لمعرفة الحكم.</p>
 
   <section class="result" id="result">
     <div class="savebar">
-      <input id="label" type="text" placeholder="اللي قريته، مثلاً: البقرة ٢٨٦" aria-label="اسم التسجيل">
+      <input id="label" type="text" placeholder="اللي قريته" aria-label="اسم التسجيل">
       <button id="saveBtn" type="button">احفظ</button>
     </div>
     <h2 id="resTitle">التحليل</h2>
@@ -107,17 +146,89 @@ td.hi{color:var(--floor);font-weight:600}
   </section>
 </main>
 
+<div id="toast" role="status"></div>
+<div class="bar">
+  <div class="inner">
+    <button id="recBtn" type="button" aria-pressed="false">ابدأ</button>
+    <div class="barinfo"><div id="timer" aria-live="polite"></div><p id="status" role="status"></p></div>
+    <label class="filepick">ملف صوتي<input id="fileIn" type="file" accept="audio/*"></label>
+  </div>
+</div>
+
 <script>
 (function(){
 const FLOOR = 91;
 const HOP = 0.02;
 const $ = id => document.getElementById(id);
 const recBtn=$('recBtn'), timerEl=$('timer'), statusEl=$('status'), fileIn=$('fileIn');
-let mediaRec=null, chunks=[], t0=0, tick=null, current=null;
+let t0=0, tick=null, current=null;
 
 function setStatus(msg, err){ statusEl.textContent=msg||''; statusEl.classList.toggle('err',!!err); }
 const fmt = s => { s=Math.max(0,s); const m=Math.floor(s/60); return m+':'+String(Math.floor(s%60)).padStart(2,'0'); };
 const fmt1 = s => s.toFixed(1);
+
+/* ---------- screen wake lock ---------- */
+let wake=null;
+async function requestWake(){ try{ if('wakeLock' in navigator) wake=await navigator.wakeLock.request('screen'); }catch(e){} }
+function releaseWake(){ try{ if(wake) wake.release(); }catch(e){} wake=null; }
+
+/* ---------- mushaf ---------- */
+const reading={meta:null, surah:1, from:1, to:7, shown:false, cache:{}};
+const toAr = n => String(n).replace(/\d/g, d=>'٠١٢٣٤٥٦٧٨٩'[d]);
+function readingLabel(){ if(!reading.shown||!reading.meta) return ''; const nm=reading.meta.names[reading.surah-1]; return reading.from===reading.to ? nm+' '+reading.from : nm+' '+reading.from+'–'+reading.to; }
+async function getSurah(n){ return reading.meta.surahs[n-1]; }
+function ayahNodes(pieces){
+  const frag=document.createDocumentFragment();
+  for(const p of pieces){
+    if(typeof p==='string'){ frag.append(document.createTextNode(p)); continue; }
+    const s=document.createElement('span'); s.className='t'+p[1]; s.dataset.h=p[2]; s.textContent=p[0]; frag.append(s);
+  }
+  return frag;
+}
+async function showReading(){
+  const m=reading.meta; if(!m) return;
+  const s=+$('surahSel').value, max=m.counts[s-1];
+  let a=Math.max(1,Math.min(max, parseInt($('fromIn').value)||1));
+  let b=Math.max(a,Math.min(max, parseInt($('toIn').value)||a));
+  $('fromIn').value=a; $('toIn').value=b; $('fromIn').max=max; $('toIn').max=max;
+  const box=$('mushaf'); box.innerHTML='<p class="empty">بيحمّل…</p>';
+  try{
+    const ay=await getSurah(s);
+    box.innerHTML='';
+    if(a===1 && s!==1 && s!==9){ const fat=await getSurah(1); const bs=document.createElement('span'); bs.className='basmala'; bs.append(ayahNodes(fat[0])); box.append(bs); }
+    for(let i=a;i<=b;i++){
+      box.append(ayahNodes(ay[i-1]));
+      const n=document.createElement('span'); n.className='num'; n.textContent=' ﴿'+toAr(i)+'﴾ '; box.append(n);
+    }
+    Object.assign(reading,{surah:s,from:a,to:b,shown:true});
+    try{ localStorage.setItem('tilawa_reading',JSON.stringify({s,a,b})); }catch(e){}
+  }catch(e){ box.innerHTML='<p class="empty">مقدرتش أحمّل الآيات. اتأكد من النت وجرّب تاني.</p>'; }
+}
+$('showBtn').addEventListener('click', showReading);
+$('surahSel').addEventListener('change',()=>{ const max=reading.meta.counts[+$('surahSel').value-1]; $('fromIn').value=1; $('toIn').value=Math.min(max,10); });
+$('tajToggle').addEventListener('change',e=>{ $('mushaf').classList.toggle('plain',!e.target.checked); $('tajLegend').style.display=e.target.checked?'':'none'; try{localStorage.setItem('tilawa_taj',e.target.checked?'1':'0');}catch(_){} });
+let qsize=30; try{ qsize=+(localStorage.getItem('tilawa_qsize')||30); }catch(e){}
+function applySize(){ document.documentElement.style.setProperty('--qsize',qsize+'px'); try{localStorage.setItem('tilawa_qsize',qsize);}catch(e){} }
+$('smaller').addEventListener('click',()=>{ qsize=Math.max(20,qsize-3); applySize(); });
+$('bigger').addEventListener('click',()=>{ qsize=Math.min(48,qsize+3); applySize(); });
+applySize();
+let toastT=null;
+$('mushaf').addEventListener('click',e=>{
+  const sp=e.target.closest('[data-h]'); if(!sp||!reading.meta||$('mushaf').classList.contains('plain')) return;
+  const t=$('toast'); t.textContent=reading.meta.hukums[+sp.dataset.h]||''; t.classList.add('show');
+  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2200);
+});
+(async()=>{
+  try{
+    $('mushaf').innerHTML='<p class="empty">بيحمّل المصحف…</p>'; const r=await fetch('quran.json'); if(!r.ok) throw new Error('load'); reading.meta=await r.json(); $('mushaf').innerHTML='<p class="empty">اختار السورة والآيات ودوس «اعرض».</p>';
+    const sel=$('surahSel');
+    reading.meta.names.forEach((n,i)=>{ const o=document.createElement('option'); o.value=i+1; o.textContent=toAr(i+1)+'. '+n; sel.append(o); });
+    let last=null; try{ last=JSON.parse(localStorage.getItem('tilawa_reading')||'null'); }catch(e){}
+    if(last){ sel.value=last.s; $('fromIn').value=last.a; $('toIn').value=last.b; showReading(); } else { sel.value=1; }
+    let tj=null; try{ tj=localStorage.getItem('tilawa_taj'); }catch(e){}
+    if(tj==='0'){ $('tajToggle').checked=false; $('mushaf').classList.add('plain'); $('tajLegend').style.display='none'; }
+  }catch(e){ $('mushaf').innerHTML='<p class="empty">مقدرتش أحمّل بيانات المصحف.</p>'; }
+})();
 
 /* ---------- recording (raw PCM, no MediaRecorder needed) ---------- */
 let rec=null;
@@ -135,6 +246,7 @@ async function stopRec(){
   const len=r.chunks.reduce((a,c)=>a+c.length,0);
   const pcm=new Float32Array(len); let o=0; for(const c of r.chunks){ pcm.set(c,o); o+=c.length; }
   const sr=r.ac.sampleRate; try{ await r.ac.close(); }catch(e){}
+  releaseWake();
   if(len<sr*0.5){ setStatus('التسجيل قصير جداً.', true); return; }
   await analyzePCM(pcm, sr);
 }
@@ -156,6 +268,7 @@ recBtn.addEventListener('click', async ()=>{
   const sink=ac.createGain(); sink.gain.value=0;
   src.connect(proc); proc.connect(sink); sink.connect(ac.destination);
   rec={ac,stream,src,proc,chunks};
+  requestWake();
   t0=performance.now(); timerEl.textContent='0:00';
   tick=setInterval(()=>{ const s=(performance.now()-t0)/1000; timerEl.textContent=fmt(s); if(s>=300 && rec) stopRec(); },250);
   recBtn.classList.add('on'); recBtn.textContent='إنهاء'; recBtn.setAttribute('aria-pressed','true');
@@ -303,11 +416,12 @@ async function runAnalysis({x,sr,duration}, name){
   {
     if(duration>300){ setStatus('التسجيل أطول من ٥ دقائق. قسّمه لأجزاء أقصر.', true); return; }
     const r=await analyze(x,sr);
-    current={label:name||'', createdAt:new Date().toISOString(), duration:+duration.toFixed(2), hop:HOP, floorRef:FLOOR, ...r, saved:false};
+    current={label:(reading.shown?readingLabel():name)||'', createdAt:new Date().toISOString(), duration:+duration.toFixed(2), hop:HOP, floorRef:FLOOR, ...r, saved:false};
+    if(reading.shown){ current.reading={surah:reading.surah, from:reading.from, to:reading.to}; current.stats={...current.stats, surah:reading.surah, from:reading.from, to:reading.to}; }
     $('label').value=current.label;
     $('saveBtn').disabled=false; $('saveBtn').textContent='احفظ';
     render(current);
-    setStatus('التحليل جاهز. اكتب اللي قريته واحفظه.');
+    setStatus('التحليل جاهز. اتأكد من الاسم واحفظ.'); $('result').scrollIntoView({behavior:'smooth',block:'start'});
   }
 }
 
@@ -383,7 +497,7 @@ function saveLocal(list){
 
 $('saveBtn').addEventListener('click', async ()=>{
   if(!current) return;
-  const label=$('label').value.trim()||('تسجيل '+new Date().toLocaleString('ar-EG'));
+  const label=$('label').value.trim()||readingLabel()||('تسجيل '+new Date().toLocaleString('ar-EG'));
   current.label=label; $('resTitle').textContent=label;
   const btn=$('saveBtn'); btn.disabled=true; btn.textContent='بيحفظ…';
   const row={label, duration:current.duration, hop:current.hop, stats:current.stats, phrases:current.phrases,
@@ -393,7 +507,7 @@ $('saveBtn').addEventListener('click', async ()=>{
     if(!res.ok) throw new Error(String(res.status));
     current.saved=true; btn.textContent='اتحفظ';
     const list=loadLocal(); list.unshift({...current, id:'l'+Date.now()}); saveLocal(list.slice(0,25)); renderHistory();
-    setStatus('اتحفظ باسم «'+label+'». قول لـClaude يشوفه.');
+    setStatus('اتحفظ باسم «'+label+'». قول لـClaude «شوف».');
   }catch(e){
     btn.disabled=false; btn.textContent='احفظ';
     setStatus(navigator.onLine===false ? 'مفيش نت. جرّب تاني لما يرجع.' : 'الحفظ فشل. لو المشروع على Supabase متوقف، رجّعه من لوحة Supabase وجرّب تاني.', true);
