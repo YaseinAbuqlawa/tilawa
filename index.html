@@ -97,6 +97,13 @@ td.hi{color:var(--floor);font-weight:600}
 .history li button:focus-visible{outline:3px solid var(--floor)}
 .history .when{color:var(--muted);font-size:.85rem}
 .empty{color:var(--muted);font-size:.92rem}
+.mushaf .ayah{display:block;padding:4px 10px;margin:0 -10px;border-radius:14px;transition:background .2s;scroll-margin:90px 0 120px}
+.mushaf .ayah.active{background:var(--pause)}
+.mushaf .cue{font-family:"IBM Plex Sans Arabic",system-ui,sans-serif;font-size:13px;line-height:1;padding:4px 9px;border-radius:999px;border:1px solid var(--line);color:var(--muted);vertical-align:middle;white-space:nowrap}
+.mushaf .cue.hang{color:var(--floor);border-color:var(--floor)}
+.mushaf canvas.live{display:none;width:100%;height:120px;margin:2px 0 8px}
+.mushaf .ayah.has-line canvas.live{display:block}
+.tools select{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:6px 8px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -112,6 +119,7 @@ td.hi{color:var(--floor);font-weight:600}
   </div>
   <div class="tools">
     <label><input type="checkbox" id="tajToggle" checked> ألوان التجويد</label>
+    <label>المقام <select id="maqamSel" aria-label="المقام"><option value="">بدون</option><option value="bayati">بياتي</option><option value="saba">صبا</option><option value="nahawand">نهاوند</option><option value="rast">راست</option><option value="hijaz">حجاز</option><option value="ajam">عجم</option></select></label>
     <button class="btn quiet" id="smaller" type="button" aria-label="تصغير الخط">أ−</button>
     <button class="btn quiet" id="bigger" type="button" aria-label="تكبير الخط">أ+</button>
   </div>
@@ -130,7 +138,7 @@ td.hi{color:var(--floor);font-weight:600}
     <h2 id="resTitle">التحليل</h2>
     <div class="stats" id="stats"></div>
     <div class="chartwrap"><canvas id="chart"></canvas></div>
-    <p class="legend"><i></i>أرضيتك ٩١ هرتز &nbsp; <s></s>وقفة &nbsp; الخط الأثقل مدّ ممسوك</p>
+    <p class="legend"><i></i>أرضيتك &nbsp; <s></s>وقفة &nbsp; الخط الأثقل مدّ ممسوك</p>
     <h2>الجمل</h2>
     <div class="tablewrap">
       <table>
@@ -159,6 +167,16 @@ td.hi{color:var(--floor);font-weight:600}
 (function(){
 const FLOOR = 91;
 const HOP = 0.02;
+const SB_BASE='https://mnklhvblohyrgsvfhgxl.supabase.co/rest/v1';
+const SB_KEY='sb_publishable_h4WKea7RQ4ASC7AgxnXHnQ_xJnDEDwV';
+const SB_URL=SB_BASE+'/tilawa_recordings';
+const MAQAMAT={
+  bayati:{name:'بياتي',deg:[0,150,300,500],key:1}, saba:{name:'صبا',deg:[0,150,300,400],key:3},
+  nahawand:{name:'نهاوند',deg:[0,200,300,500],key:1}, rast:{name:'راست',deg:[0,200,350,500],key:2},
+  hijaz:{name:'حجاز',deg:[0,100,400,500],key:2}, ajam:{name:'عجم',deg:[0,200,400,500],key:2}
+};
+function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
 const $ = id => document.getElementById(id);
 const recBtn=$('recBtn'), timerEl=$('timer'), statusEl=$('status'), fileIn=$('fileIn');
 let t0=0, tick=null, current=null;
@@ -185,6 +203,37 @@ function ayahNodes(pieces){
   }
   return frag;
 }
+const marksCache={};
+async function loadMarks(s){
+  if(marksCache[s]) return marksCache[s];
+  try{ const r=await fetch(SB_BASE+'/tilawa_marks?surah=eq.'+s+'&select=ayah,cue',{headers:{apikey:SB_KEY}});
+    if(!r.ok) throw 0; marksCache[s]=Object.fromEntries((await r.json()).map(x=>[x.ayah,x.cue])); }
+  catch(e){ return {}; }
+  return marksCache[s];
+}
+const normAr = t => t.replace(/[\u200c\u200d\u0640]/g,'').replace(/[\u064B-\u065F\u0670\u06D6-\u06ED\u08F0-\u08FF]/g,'')
+  .replace(/[\u0671\u0622\u0623\u0625]/g,'\u0627').replace(/[\u0621\u0654\u0655]/g,'');
+const plainText = pieces => pieces.map(p=>typeof p==='string'?p:p[0]).join('');
+const QWORDS=new Set(['اريت','افريت','اريتم','افريتم','الم','افلا','افلم','هل','ادرىك','ادريك','كيف','اين','الست']);
+const CONT=new Set(['الذين','الذي','الذى','التي','التى','الا','حتى']);
+const letterCount = pieces => (normAr(plainText(pieces)).match(/\p{L}/gu)||[]).length;
+function ruleCue(ay, i){
+  if(i===ay.length) return 'close';
+  const words=normAr(plainText(ay[i-1])).split(/\s+/);
+  if(words.some(w=>QWORDS.has(w))) return 'hang';
+  const next=normAr(plainText(ay[i])).trim().split(/\s+/)[0];
+  return CONT.has(next) ? 'hang' : 'close';
+}
+function makeBlock(pieces, ayahNo, cue){
+  const div=document.createElement('div'); div.className='ayah'; div.dataset.ayah=ayahNo;
+  const txt=document.createElement('span'); txt.append(ayahNodes(pieces));
+  if(ayahNo>0){ const n=document.createElement('span'); n.className='num'; n.textContent=' ﴿'+toAr(ayahNo)+'﴾ '; txt.append(n); }
+  div.append(txt);
+  if(cue){ const c=document.createElement('span'); c.className='cue '+cue; c.textContent= cue==='hang'?'معلّق':'قفلة'; div.append(c); }
+  const cv=document.createElement('canvas'); cv.className='live'; cv.setAttribute('aria-hidden','true'); div.append(cv);
+  const raw=plainText(pieces).trim();
+  return {ayah:ayahNo, el:div, canvas:cv, letters:letterCount(pieces), waqf:/[\u06D6-\u06DB]/.test(raw.slice(0,-1)), pts:[]};
+}
 async function showReading(){
   const m=reading.meta; if(!m) return;
   const s=+$('surahSel').value, max=m.counts[s-1];
@@ -194,12 +243,13 @@ async function showReading(){
   const box=$('mushaf'); box.innerHTML='<p class="empty">بيحمّل…</p>';
   try{
     const ay=await getSurah(s);
+    const marks=await loadMarks(s);
     box.innerHTML='';
-    if(a===1 && s!==1 && s!==9){ const fat=await getSurah(1); const bs=document.createElement('span'); bs.className='basmala'; bs.append(ayahNodes(fat[0])); box.append(bs); }
-    for(let i=a;i<=b;i++){
-      box.append(ayahNodes(ay[i-1]));
-      const n=document.createElement('span'); n.className='num'; n.textContent=' ﴿'+toAr(i)+'﴾ '; box.append(n);
-    }
+    const items=[];
+    if(a===1 && s!==1 && s!==9){ const fat=await getSurah(1); const it=makeBlock(fat[0],0,null); it.el.classList.add('basmala'); items.push(it); }
+    for(let i=a;i<=b;i++) items.push(makeBlock(ay[i-1], i, marks[i]||ruleCue(ay,i)));
+    items.forEach(it=>box.append(it.el));
+    reading.items=items;
     Object.assign(reading,{surah:s,from:a,to:b,shown:true});
     try{ localStorage.setItem('tilawa_reading',JSON.stringify({s,a,b})); }catch(e){}
   }catch(e){ box.innerHTML='<p class="empty">مقدرتش أحمّل الآيات. اتأكد من النت وجرّب تاني.</p>'; }
@@ -212,8 +262,11 @@ function applySize(){ document.documentElement.style.setProperty('--qsize',qsize
 $('smaller').addEventListener('click',()=>{ qsize=Math.max(20,qsize-3); applySize(); });
 $('bigger').addEventListener('click',()=>{ qsize=Math.min(48,qsize+3); applySize(); });
 applySize();
+const maqamSel=$('maqamSel'); maqamSel.value=lsGet('tilawa_maqam')||'';
+maqamSel.addEventListener('change',()=>{ lsSet('tilawa_maqam',maqamSel.value); if(live.on){ live.maqam=maqamSel.value; live.dirty=true; } else redrawAllLive(); });
 let toastT=null;
 $('mushaf').addEventListener('click',e=>{
+  if(live.on){ const blk=e.target.closest('.ayah'); if(blk && reading.items){ const j=reading.items.findIndex(it=>it.el===blk); if(j>=0) liveSetActive(j); } return; }
   const sp=e.target.closest('[data-h]'); if(!sp||!reading.meta||$('mushaf').classList.contains('plain')) return;
   const t=$('toast'); t.textContent=reading.meta.hukums[+sp.dataset.h]||''; t.classList.add('show');
   clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2200);
@@ -230,8 +283,139 @@ $('mushaf').addEventListener('click',e=>{
   }catch(e){ $('mushaf').innerHTML='<p class="empty">مقدرتش أحمّل بيانات المصحف.</p>'; }
 })();
 
+/* ---------- live pitch ---------- */
+function estimateTonic(hz){
+  const v=hz.filter(f=>f>0); if(v.length<30) return 0;
+  const c=v.map(f=>1200*Math.log2(f/100)); const lim=pct(c,40);
+  const bins=new Map(); c.forEach(x=>{ if(x<=lim){ const b=Math.round(x/10); bins.set(b,(bins.get(b)||0)+1); } });
+  let best=null, bv=-1;
+  for(const [b] of bins){ let sm=0; [[-2,1],[-1,2],[0,3],[1,2],[2,1]].forEach(([o,w])=>sm+=w*(bins.get(b+o)||0)); if(sm>bv){bv=sm;best=b;} }
+  return Math.round(100*Math.pow(2,best*10/1200)*10)/10;
+}
+const live={on:false};
+function liveStart(sr){
+  const k=Math.max(1,Math.round(sr/16000)), dsr=sr/k;
+  const W=Math.round(0.025*dsr), tmax=Math.floor(dsr/60), tmin=Math.floor(dsr/300);
+  const stored=parseFloat(lsGet('tilawa_tonic'))||88;
+  Object.assign(live,{on:true,k,dsr,W,tmax,tmin,need:W+tmax+2,hop:Math.round(0.04*dsr),d:new Float64Array(tmax+2),
+    buf:new Float32Array(Math.ceil(dsr*3)),len:0,base:0,acc:0,accN:0,next:W+tmax+2,
+    noise:null,dbHist:[],vdb:[],last3:[],voiced:[],tonic:stored,tonicLocked:false,idx:0,segVoiced:0,silence:0,rate:4.5,rates:[],vStart:null,
+    marks:[],dirty:true,maqam:maqamSel.value||''});
+  (reading.items||[]).forEach(it=>{ it.pts=[]; it.el.classList.remove('has-line','active'); });
+  if(reading.shown && reading.items && reading.items.length) liveSetActive(0);
+  requestAnimationFrame(liveLoop);
+}
+function liveFeed(ch){
+  if(!live.on) return;
+  const k=live.k;
+  for(let j=0;j<ch.length;j++){
+    live.acc+=ch[j]; live.accN++;
+    if(live.accN===k){
+      if(live.len>=live.buf.length){ const keep=Math.ceil(live.dsr); live.buf.copyWithin(0,live.len-keep,live.len); live.base+=live.len-keep; live.len=keep; }
+      live.buf[live.len++]=live.acc/k; live.acc=0; live.accN=0;
+    }
+  }
+  while(live.next<=live.base+live.len){
+    const st=live.next-live.need-live.base;
+    if(st>=0){
+      let e=0; for(let j=0;j<live.W;j++){ const v=live.buf[st+j]; e+=v*v; }
+      const db=10*Math.log10(e/live.W+1e-12)+100;
+      let f=0;
+      if(live.noise===null || live.dbHist.length<10 || db>live.noise+10){ const t=yinFrame(live.buf,st,live.W,live.tmin,live.tmax,live.d); f=t?live.dsr/t:0; if(f<60||f>300) f=0; }
+      liveFrame(live.next/live.dsr, f, db);
+    }
+    live.next+=live.hop;
+  }
+}
+function liveFrame(t,f,db){
+  if(window.__dbg) window.__dbg.push([+t.toFixed(2),Math.round(db),Math.round(live.noise||0),Math.round(f),live.idx,+live.segVoiced.toFixed(1)]);
+  const step=live.hop/live.dsr;
+  live.dbHist.push(db); if(live.dbHist.length>150) live.dbHist.shift();
+  if(live.noise===null || live.dbHist.length%10===0) live.noise=pct(live.dbHist.filter(x=>x>25),10)||db;
+  if(f && live.voiced.length>20){ const m=med(live.voiced.slice(-80)); if(f>1.75*m) f/=2; else if(f<0.55*m) f=0; }
+  const voiced=f>0 && db>live.noise+10;
+  if(voiced){ live.vdb.push(db); if(live.vdb.length>150) live.vdb.shift(); }
+  const silent= db < Math.max(live.noise+8, live.vdb.length>20 ? med(live.vdb)-12 : -1e9);
+  live.last3.push(voiced?f:0); if(live.last3.length>3) live.last3.shift();
+  const items=reading.items||[], it=items[live.idx];
+  if(voiced){
+    const hz= live.last3.every(x=>x>0) ? [...live.last3].sort((a,b)=>a-b)[1] : f;
+    live.voiced.push(hz); if(live.voiced.length>1500) live.voiced.shift();
+    live.segVoiced+=step; live.silence=0;
+    if(!live.tonicLocked && live.voiced.length>=100 && live.voiced.length%50===0){
+      const tn=estimateTonic(live.voiced); if(tn) live.tonic=tn; if(live.voiced.length>=250) live.tonicLocked=true;
+    }
+    if(it){
+      if(live.vStart===null){ live.vStart=t; live.marks.push({ayah:it.ayah,t:+t.toFixed(2)}); }
+      it.pts.push([t-live.vStart,hz]); it.el.classList.add('has-line'); live.dirty=true;
+    }
+  } else if(silent){
+    live.silence+=step;
+    if(it && live.idx<items.length-1 && live.silence>=0.3){
+      const exp=it.letters/live.rate, sv=live.segVoiced;
+      const ok = sv>=1 && ((live.silence>=0.45 && sv>=(it.waqf?0.85:0.4)*exp) || sv>=0.85*exp);
+      if(ok){
+        if(it.ayah>0){ live.rates.push(it.letters/Math.max(0.5,sv)); live.rate=Math.min(8,Math.max(3,med(live.rates))); }
+        liveSetActive(live.idx+1);
+      }
+    }
+  }
+}
+function liveSetActive(j){
+  const items=reading.items||[]; if(!items[j]) return;
+  if(items[live.idx]) items[live.idx].el.classList.remove('active');
+  live.idx=j; live.segVoiced=0; live.silence=0; live.vStart=null;
+  items[j].pts=[]; items[j].el.classList.add('active');
+  try{ items[j].el.scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){}
+  live.dirty=true;
+}
+function liveLoop(){
+  if(live.dirty){ const it=(reading.items||[])[live.idx]; if(it) drawLive(it, live.tonic, live.maqam); live.dirty=false; }
+  if(live.on) requestAnimationFrame(liveLoop);
+}
+function liveStop(){
+  if(!live.on) return null;
+  live.on=false;
+  const it=(reading.items||[])[live.idx]; if(it) it.el.classList.remove('active');
+  lsSet('tilawa_lastLiveTonic', String(live.tonic));
+  return {maqam:live.maqam||null, tonic:live.tonic, verses:live.marks};
+}
+function redrawAllLive(){ (reading.items||[]).forEach(it=>{ if(it.pts.length) drawLive(it, live.tonic||parseFloat(lsGet('tilawa_tonic'))||88, maqamSel.value||''); }); }
+function drawLive(it, tonic, maqam){
+  const cv=it.canvas, dpr=window.devicePixelRatio||1, W=cv.clientWidth||300, H=120;
+  if(cv.width!==Math.round(W*dpr)||cv.height!==H*dpr){ cv.width=Math.round(W*dpr); cv.height=H*dpr; }
+  const g=cv.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,W,H);
+  const lo=-220, hi=620, padT=10, padB=10, gut=44;
+  const y=c=>padT+(H-padT-padB)*(1-(c-lo)/(hi-lo));
+  const muted=css('--muted'), line=css('--line'), acc=css('--accent'), fl=css('--floor');
+  g.font='12px "IBM Plex Sans Arabic", system-ui, sans-serif'; g.textAlign='right'; g.textBaseline='middle';
+  const m=MAQAMAT[maqam]; const degs=m?m.deg:[0];
+  degs.forEach((c,di)=>{
+    const yy=Math.round(y(c))+.5, key=m && di===m.key;
+    g.strokeStyle= di===0?muted:(key?fl:line); g.lineWidth= di===0||key?1.5:1; g.setLineDash(di===0?[]:[5,4]);
+    g.beginPath(); g.moveTo(4,yy); g.lineTo(W-gut,yy); g.stroke();
+    g.fillStyle= key?fl:muted; g.fillText(di===0?'الأرض':toAr(di), W-4, yy);
+  });
+  g.setLineDash([]);
+  const pts=it.pts; if(!pts.length) return;
+  const pps=40, x0=W-gut-6, avail=x0-6, tEnd=pts[pts.length-1][0], off=Math.max(0,tEnd*pps-avail);
+  const X=t=>x0-(t*pps-off);
+  g.strokeStyle=acc; g.lineWidth=2.5; g.lineJoin='round'; g.lineCap='round';
+  g.beginPath(); let prev=null;
+  for(const [t,hz] of pts){
+    const px=X(t); if(px<2||px>x0+1){ prev=null; continue; }
+    const c=Math.max(lo,Math.min(hi,1200*Math.log2(hz/tonic))), py=y(c);
+    if(prev===null || t-prev>0.13) g.moveTo(px,py); else g.lineTo(px,py);
+    prev=t;
+  }
+  g.stroke();
+  const [lt,lh]=pts[pts.length-1];
+  if(live.on){ g.fillStyle=acc; g.beginPath(); g.arc(X(lt), y(Math.max(lo,Math.min(hi,1200*Math.log2(lh/tonic)))), 4.5, 0, 2*Math.PI); g.fill(); }
+}
+window.addEventListener('resize',()=>{ if(!live.on) redrawAllLive(); else live.dirty=true; });
+
 /* ---------- recording (raw PCM, no MediaRecorder needed) ---------- */
-let rec=null;
+let rec=null, pendingLive=null;
 function diag(){
   const ua=navigator.userAgent, m=ua.match(/OS (\d+)_(\d+)/);
   return 'العنوان: '+location.protocol+'//'+location.host+'  |  اتصال آمن: '+(window.isSecureContext?'أيوه':'لأ')+
@@ -247,6 +431,7 @@ async function stopRec(){
   const pcm=new Float32Array(len); let o=0; for(const c of r.chunks){ pcm.set(c,o); o+=c.length; }
   const sr=r.ac.sampleRate; try{ await r.ac.close(); }catch(e){}
   releaseWake();
+  pendingLive=liveStop();
   if(len<sr*0.5){ setStatus('التسجيل قصير جداً.', true); return; }
   await analyzePCM(pcm, sr);
 }
@@ -264,10 +449,11 @@ recBtn.addEventListener('click', async ()=>{
   const src=ac.createMediaStreamSource(stream);
   const proc=ac.createScriptProcessor(4096,1,1);
   const chunks=[];
-  proc.onaudioprocess=ev=>{ chunks.push(new Float32Array(ev.inputBuffer.getChannelData(0))); };
+  proc.onaudioprocess=ev=>{ const c=new Float32Array(ev.inputBuffer.getChannelData(0)); chunks.push(c); try{ liveFeed(c); }catch(e){} };
   const sink=ac.createGain(); sink.gain.value=0;
   src.connect(proc); proc.connect(sink); sink.connect(ac.destination);
   rec={ac,stream,src,proc,chunks};
+  pendingLive=null; liveStart(ac.sampleRate);
   requestWake();
   t0=performance.now(); timerEl.textContent='0:00';
   tick=setInterval(()=>{ const s=(performance.now()-t0)/1000; timerEl.textContent=fmt(s); if(s>=300 && rec) stopRec(); },250);
@@ -416,8 +602,13 @@ async function runAnalysis({x,sr,duration}, name){
   {
     if(duration>300){ setStatus('التسجيل أطول من ٥ دقائق. قسّمه لأجزاء أقصر.', true); return; }
     const r=await analyze(x,sr);
-    current={label:(reading.shown?readingLabel():name)||'', createdAt:new Date().toISOString(), duration:+duration.toFixed(2), hop:HOP, floorRef:FLOOR, ...r, saved:false};
+    const tonic=estimateTonic(r.f0)||FLOOR;
+    if(tonic) lsSet('tilawa_tonic', String(tonic));
+    current={label:(reading.shown?readingLabel():name)||'', createdAt:new Date().toISOString(), duration:+duration.toFixed(2), hop:HOP, floorRef:tonic, ...r, saved:false};
+    current.stats={...current.stats, tonic};
     if(reading.shown){ current.reading={surah:reading.surah, from:reading.from, to:reading.to}; current.stats={...current.stats, surah:reading.surah, from:reading.from, to:reading.to}; }
+    if(pendingLive && !name){ current.stats={...current.stats, maqam:pendingLive.maqam, live:pendingLive}; }
+    pendingLive=null;
     $('label').value=current.label;
     $('saveBtn').disabled=false; $('saveBtn').textContent='احفظ';
     render(current);
@@ -441,7 +632,7 @@ function render(r){
   r.phrases.forEach((p,i)=>{
     const tr=document.createElement('tr');
     const cells=[i+1, fmt1(p.from), fmt1(p.to), p.start, p.peak, p.end, p.sustain? (p.sustain.hz+' / '+fmt1(p.sustain.to-p.sustain.from)+'ث') : '—'];
-    cells.forEach((c,ci)=>{ const td=document.createElement('td'); td.textContent=c; if(ci===5 && Math.abs(p.end-FLOOR)>7) td.className='hi'; tr.append(td); });
+    cells.forEach((c,ci)=>{ const td=document.createElement('td'); td.textContent=c; if(ci===5 && Math.abs(p.end-(r.floorRef||FLOOR))>7) td.className='hi'; tr.append(td); });
     tb.append(tr);
   });
   if(!r.phrases.length){ const tr=document.createElement('tr'); const td=document.createElement('td'); td.colSpan=7; td.textContent='ملقيتش جمل واضحة في التسجيل.'; tr.append(td); tb.append(tr); }
@@ -469,7 +660,7 @@ function drawChart(r){
   const step = r.duration>90?10:5;
   for(let t=0;t<=r.duration;t+=step){ g.fillText(fmt(t), x(t), H-padB+6); }
   // floor
-  g.strokeStyle=fl; g.setLineDash([6,5]); g.lineWidth=1.5; g.beginPath(); g.moveTo(padL,y(FLOOR)); g.lineTo(W-padR,y(FLOOR)); g.stroke(); g.setLineDash([]);
+  g.strokeStyle=fl; g.setLineDash([6,5]); g.lineWidth=1.5; g.beginPath(); g.moveTo(padL,y(r.floorRef||FLOOR)); g.lineTo(W-padR,y(r.floorRef||FLOOR)); g.stroke(); g.setLineDash([]);
   // pitch
   g.strokeStyle=acc; g.lineWidth=2; g.lineJoin='round';
   let on=false; g.beginPath();
@@ -486,8 +677,6 @@ function drawChart(r){
 window.addEventListener('resize',()=>{ if(current) drawChart(current); });
 
 /* ---------- storage ---------- */
-const SB_URL='https://mnklhvblohyrgsvfhgxl.supabase.co/rest/v1/tilawa_recordings';
-const SB_KEY='sb_publishable_h4WKea7RQ4ASC7AgxnXHnQ_xJnDEDwV';
 const LS_KEY='tilawa_history_v1';
 function loadLocal(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)||'[]'); }catch(e){ return []; } }
 function saveLocal(list){
